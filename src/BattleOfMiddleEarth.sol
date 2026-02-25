@@ -44,7 +44,8 @@ contract BattleOfMiddleEarth {
         Outcome outcome;
         address challenger;
         address defender;
-        uint256 wager; // SIL wagered
+        uint256 wager; // net SIL received from challenger
+        uint256 defenderWager; // net SIL received from defender
         uint256 startBlock;
         uint256 resolveBlock; // Block when battle can be resolved
         string battleName;
@@ -188,7 +189,9 @@ contract BattleOfMiddleEarth {
         if (defender == msg.sender) revert CannotFightSelf();
         if (wager < MIN_WAGER) revert InsufficientWager();
 
+        uint256 balBefore = silToken.balanceOf(address(this));
         require(silToken.transferFrom(msg.sender, address(this), wager), "Transfer failed");
+        uint256 netWager = silToken.balanceOf(address(this)) - balBefore;
 
         uint256 id = nextBattleId++;
 
@@ -199,7 +202,8 @@ contract BattleOfMiddleEarth {
             outcome: Outcome.Undecided,
             challenger: msg.sender,
             defender: defender,
-            wager: wager,
+            wager: netWager,
+            defenderWager: 0,
             startBlock: 0,
             resolveBlock: 0,
             battleName: battleName
@@ -215,14 +219,17 @@ contract BattleOfMiddleEarth {
         if (b.status != BattleStatus.Pending) revert BattleNotPending();
         if (b.defender != msg.sender) revert NotBattleParticipant();
 
+        uint256 balBefore = silToken.balanceOf(address(this));
         require(silToken.transferFrom(msg.sender, address(this), b.wager), "Transfer failed");
+        uint256 defenderNet = silToken.balanceOf(address(this)) - balBefore;
+        b.defenderWager = defenderNet;
 
         b.status = BattleStatus.Active;
         b.startBlock = block.number;
         b.resolveBlock = block.number + _getBattleDuration(b.battleType);
 
         totalBattles++;
-        totalWagered += b.wager * 2;
+        totalWagered += b.wager + b.defenderWager;
 
         emit BattleAccepted(battleId, msg.sender);
     }
@@ -244,25 +251,25 @@ contract BattleOfMiddleEarth {
         uint256 defenderTotal = defenderStats.totalPower + defenderRoll;
 
         b.status = BattleStatus.Resolved;
-        uint256 totalWager = b.wager * 2;
+        uint256 totalPot = b.wager + b.defenderWager;
 
         if (challengerTotal > defenderTotal) {
             b.outcome = Outcome.ChallengerWins;
-            _recordVictory(b.challenger, b.defender, totalWager);
-            require(silToken.transfer(b.challenger, totalWager), "Transfer failed");
+            _recordVictory(b.challenger, b.defender, totalPot);
+            require(silToken.transfer(b.challenger, totalPot), "Transfer failed");
             emit BattleResolved(battleId, Outcome.ChallengerWins, b.challenger);
         } else if (defenderTotal > challengerTotal) {
             b.outcome = Outcome.DefenderWins;
-            _recordVictory(b.defender, b.challenger, totalWager);
-            require(silToken.transfer(b.defender, totalWager), "Transfer failed");
+            _recordVictory(b.defender, b.challenger, totalPot);
+            require(silToken.transfer(b.defender, totalPot), "Transfer failed");
             emit BattleResolved(battleId, Outcome.DefenderWins, b.defender);
         } else {
             b.outcome = Outcome.Draw;
             warriors[b.challenger].draws++;
             warriors[b.defender].draws++;
-            // Return wagers
+            // Return wagers (net amounts)
             require(silToken.transfer(b.challenger, b.wager), "Transfer failed");
-            require(silToken.transfer(b.defender, b.wager), "Transfer failed");
+            require(silToken.transfer(b.defender, b.defenderWager), "Transfer failed");
             emit BattleResolved(battleId, Outcome.Draw, address(0));
         }
     }
