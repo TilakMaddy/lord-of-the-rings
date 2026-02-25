@@ -74,6 +74,7 @@ contract BattleOfMiddleEarth {
     uint256 public constant SIEGE_DURATION = 50;
     uint256 public constant GREAT_BATTLE_DURATION = 100;
     uint256 public constant MIN_WAGER = 10 ether; // 10 SIL
+    uint256 public constant MAX_GREAT_BATTLE_PARTICIPANTS = 50;
 
     // War titles earned at milestones
     uint256 public constant TITLE_WARRIOR = 5; // 5 wins
@@ -92,6 +93,7 @@ contract BattleOfMiddleEarth {
     mapping(uint256 => GreatBattleConfig) public greatBattles;
     mapping(uint256 => address[]) public greatBattleParticipants; // light side
     mapping(uint256 => address[]) public greatBattleDarkSide;
+    mapping(uint256 => mapping(address => bool)) public greatBattleJoined;
 
     uint256 public nextBattleId = 1;
     uint256 public nextGreatBattleId = 1;
@@ -117,6 +119,8 @@ contract BattleOfMiddleEarth {
     error InsufficientWager();
     error NotBattleParticipant();
     error InvalidBattle();
+    error AlreadyJoinedGreatBattle();
+    error GreatBattleSideFull();
 
     constructor(address _ringsOfPower, address _middleEarth, address _silToken) {
         ringsOfPower = RingsOfPower(_ringsOfPower);
@@ -283,14 +287,20 @@ contract BattleOfMiddleEarth {
     /// @notice Join a Great Battle on the light side
     function joinGreatBattleLight(uint256 greatBattleId) external {
         require(greatBattles[greatBattleId].isActive, "Battle not active");
+        if (greatBattleJoined[greatBattleId][msg.sender]) revert AlreadyJoinedGreatBattle();
+        if (greatBattleParticipants[greatBattleId].length >= MAX_GREAT_BATTLE_PARTICIPANTS) revert GreatBattleSideFull();
         greatBattleParticipants[greatBattleId].push(msg.sender);
+        greatBattleJoined[greatBattleId][msg.sender] = true;
         emit GreatBattleJoined(greatBattleId, msg.sender, true);
     }
 
     /// @notice Join a Great Battle on the dark side
     function joinGreatBattleDark(uint256 greatBattleId) external {
         require(greatBattles[greatBattleId].isActive, "Battle not active");
+        if (greatBattleJoined[greatBattleId][msg.sender]) revert AlreadyJoinedGreatBattle();
+        if (greatBattleDarkSide[greatBattleId].length >= MAX_GREAT_BATTLE_PARTICIPANTS) revert GreatBattleSideFull();
         greatBattleDarkSide[greatBattleId].push(msg.sender);
+        greatBattleJoined[greatBattleId][msg.sender] = true;
         emit GreatBattleJoined(greatBattleId, msg.sender, false);
     }
 
