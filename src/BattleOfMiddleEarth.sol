@@ -92,6 +92,9 @@ contract BattleOfMiddleEarth {
     mapping(uint256 => GreatBattleConfig) public greatBattles;
     mapping(uint256 => address[]) public greatBattleParticipants; // light side
     mapping(uint256 => address[]) public greatBattleDarkSide;
+    mapping(uint256 => mapping(address => bool)) public greatBattleJoinedLight;
+    mapping(uint256 => mapping(address => bool)) public greatBattleJoinedDark;
+    uint256 public constant MAX_GREAT_BATTLE_PARTICIPANTS = 100;
 
     uint256 public nextBattleId = 1;
     uint256 public nextGreatBattleId = 1;
@@ -283,6 +286,10 @@ contract BattleOfMiddleEarth {
     /// @notice Join a Great Battle on the light side
     function joinGreatBattleLight(uint256 greatBattleId) external {
         require(greatBattles[greatBattleId].isActive, "Battle not active");
+        require(!greatBattleJoinedLight[greatBattleId][msg.sender], "Already joined light side");
+        require(greatBattleParticipants[greatBattleId].length < MAX_GREAT_BATTLE_PARTICIPANTS, "Max participants reached");
+
+        greatBattleJoinedLight[greatBattleId][msg.sender] = true;
         greatBattleParticipants[greatBattleId].push(msg.sender);
         emit GreatBattleJoined(greatBattleId, msg.sender, true);
     }
@@ -290,6 +297,10 @@ contract BattleOfMiddleEarth {
     /// @notice Join a Great Battle on the dark side
     function joinGreatBattleDark(uint256 greatBattleId) external {
         require(greatBattles[greatBattleId].isActive, "Battle not active");
+        require(!greatBattleJoinedDark[greatBattleId][msg.sender], "Already joined dark side");
+        require(greatBattleDarkSide[greatBattleId].length < MAX_GREAT_BATTLE_PARTICIPANTS, "Max participants reached");
+
+        greatBattleJoinedDark[greatBattleId][msg.sender] = true;
         greatBattleDarkSide[greatBattleId].push(msg.sender);
         emit GreatBattleJoined(greatBattleId, msg.sender, false);
     }
