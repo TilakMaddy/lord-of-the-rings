@@ -92,6 +92,10 @@ contract BattleOfMiddleEarth {
     mapping(uint256 => GreatBattleConfig) public greatBattles;
     mapping(uint256 => address[]) public greatBattleParticipants; // light side
     mapping(uint256 => address[]) public greatBattleDarkSide;
+    mapping(uint256 => mapping(address => bool)) public hasJoinedLight;
+    mapping(uint256 => mapping(address => bool)) public hasJoinedDark;
+
+    uint256 public constant MAX_PARTICIPANTS = 500;
 
     uint256 public nextBattleId = 1;
     uint256 public nextGreatBattleId = 1;
@@ -283,6 +287,10 @@ contract BattleOfMiddleEarth {
     /// @notice Join a Great Battle on the light side
     function joinGreatBattleLight(uint256 greatBattleId) external {
         require(greatBattles[greatBattleId].isActive, "Battle not active");
+        require(!hasJoinedLight[greatBattleId][msg.sender], "Already joined light side");
+        require(!hasJoinedDark[greatBattleId][msg.sender], "Already joined dark side");
+        require(greatBattleParticipants[greatBattleId].length < MAX_PARTICIPANTS, "Max participants reached");
+        hasJoinedLight[greatBattleId][msg.sender] = true;
         greatBattleParticipants[greatBattleId].push(msg.sender);
         emit GreatBattleJoined(greatBattleId, msg.sender, true);
     }
@@ -290,6 +298,10 @@ contract BattleOfMiddleEarth {
     /// @notice Join a Great Battle on the dark side
     function joinGreatBattleDark(uint256 greatBattleId) external {
         require(greatBattles[greatBattleId].isActive, "Battle not active");
+        require(!hasJoinedDark[greatBattleId][msg.sender], "Already joined dark side");
+        require(!hasJoinedLight[greatBattleId][msg.sender], "Already joined light side");
+        require(greatBattleDarkSide[greatBattleId].length < MAX_PARTICIPANTS, "Max participants reached");
+        hasJoinedDark[greatBattleId][msg.sender] = true;
         greatBattleDarkSide[greatBattleId].push(msg.sender);
         emit GreatBattleJoined(greatBattleId, msg.sender, false);
     }
@@ -332,6 +344,8 @@ contract BattleOfMiddleEarth {
 
         // Distribute rewards to winning side
         address[] storage winners = lightWins ? lightSide : darkSide;
+        require(winners.length > 0, "No winners");
+        require(winners.length <= MAX_PARTICIPANTS, "Invalid winners length");
         uint256 rewardPerWinner = config.reward / winners.length;
 
         for (uint256 i = 0; i < winners.length; i++) {
